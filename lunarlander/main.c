@@ -76,7 +76,7 @@ void draw_terrain(int *terrain, SDL_Texture *texture) {
     SDL_UnlockTexture(texture);
 }
 
-// Draw score/fuel
+// Draw score/fuel text
 void draw_text(int x, int y, const char *text, SDL_Texture *texture) {
     for (int i = 0; text[i]; i++) {
         int digit = text[i] - '0';
@@ -84,6 +84,42 @@ void draw_text(int x, int y, const char *text, SDL_Texture *texture) {
             draw_sprite(x + i * 6, y, digit_sprites[digit], 5, 5, 0xFFFFFFFF, texture);
         }
     }
+}
+
+// Draw fuel gauge (20x100, left side)
+void draw_fuel_gauge(float fuel, SDL_Texture *texture) {
+    SDL_LockTexture(texture, NULL, (void **)&pixels, &pitch);
+    int bytes_per_row = pitch / sizeof(Uint32);
+    int gauge_x = 10; // Left side
+    int gauge_y = 50; // Below score
+    int gauge_width = 20;
+    int gauge_height = 100;
+    int fuel_height = (int)(fuel * gauge_height / 100.0f); // Scale fuel to 0-100
+
+    // Clear gauge area
+    for (int y = gauge_y; y < gauge_y + gauge_height; y++) {
+        for (int x = gauge_x - 1; x < gauge_x + gauge_width + 1; x++) {
+            pixels[y * bytes_per_row + x] = 0x000000FF; // Black background
+        }
+    }
+
+    // Draw border
+    for (int x = gauge_x - 1; x < gauge_x + gauge_width + 1; x++) {
+        pixels[gauge_y * bytes_per_row + x] = 0xFFFFFFFF; // Top
+        pixels[(gauge_y + gauge_height) * bytes_per_row + x] = 0xFFFFFFFF; // Bottom
+    }
+    for (int y = gauge_y; y < gauge_y + gauge_height; y++) {
+        pixels[y * bytes_per_row + gauge_x - 1] = 0xFFFFFFFF; // Left
+        pixels[y * bytes_per_row + gauge_x + gauge_width] = 0xFFFFFFFF; // Right
+    }
+
+    // Draw fuel bar (bottom-up)
+    for (int y = gauge_y + gauge_height - fuel_height; y < gauge_y + gauge_height; y++) {
+        for (int x = gauge_x; x < gauge_x + gauge_width; x++) {
+            pixels[y * bytes_per_row + x] = 0x00FF00FF; // Green fuel
+        }
+    }
+    SDL_UnlockTexture(texture);
 }
 
 int main(int argc, char *argv[]) {
@@ -192,20 +228,18 @@ int main(int argc, char *argv[]) {
         // Input (polling keys)
         const Uint8 *state = SDL_GetKeyboardState(NULL);
         int thrusting = 0;
-        if (!landed && fuel > 0) {
+        if (!landed) {
             if (state[SDL_SCANCODE_LEFT]) {
-                vel_x -= THRUST; // Thrust left
-                fuel -= 0.1f;
+                vel_x -= THRUST; // Thrust left, no fuel cost
                 thrusting = 1;
             }
             if (state[SDL_SCANCODE_RIGHT]) {
-                vel_x += THRUST; // Thrust right
-                fuel -= 0.1f;
+                vel_x += THRUST; // Thrust right, no fuel cost
                 thrusting = 1;
             }
-            if (state[SDL_SCANCODE_SPACE]) {
-                vel_y -= THRUST; // Thrust up
-                fuel -= 0.1f;
+            if (state[SDL_SCANCODE_SPACE] && fuel > 0) {
+                vel_y -= THRUST; // Thrust up, consumes fuel
+                fuel -= 0.8f; // 4x faster depletion (was 0.2f)
                 thrusting = 1;
             }
         }
@@ -241,14 +275,14 @@ int main(int argc, char *argv[]) {
                 landed = 1;
                 lander_y = terrain[lander_left] - 8; // Snap to surface
                 if (vel_y > MAX_LANDING_SPEED || lander_left < 300 || lander_right > 340) {
-                    Mix_PlayChannel(2, crash_sound, 0); // Channel 2, play once
+                    Mix_PlayChannel(2, crash_sound, 0); // Crash sound
                     printf("Crashed! Score: %d\n", score);
-                    SDL_Delay(1000); // Brief pause to hear crash
+                    SDL_Delay(1000); // Pause to hear crash
                     running = 0;
                 } else {
-                    Mix_PlayChannel(2, land_sound, 0); // Channel 2, play once
+                    Mix_PlayChannel(2, land_sound, 0); // Land sound
                     printf("Landed! Score: %d\n", score += 50);
-                    SDL_Delay(1000); // Brief pause to hear landing
+                    SDL_Delay(1000); // Pause to hear landing
                     running = 0;
                 }
             }
@@ -269,11 +303,10 @@ int main(int argc, char *argv[]) {
         draw_terrain(terrain, texture); // Redraw terrain
 
         // Draw HUD
-        char score_str[10], fuel_str[10];
+        char score_str[10];
         snprintf(score_str, 10, "%d", score);
-        snprintf(fuel_str, 10, "%d", (int)fuel);
-        draw_text(10, 10, score_str, texture);
-        draw_text(SCREEN_WIDTH - 40, 10, fuel_str, texture);
+        draw_text(10, 10, score_str, texture); // Score text
+        draw_fuel_gauge(fuel, texture); // Fuel gauge
 
         // Render
         SDL_RenderClear(renderer);
