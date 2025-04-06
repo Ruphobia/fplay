@@ -1,11 +1,9 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_mixer.h>
 #include "cave.h"
+#include "player1.h"
+#include "player2.h"
 #include <stdio.h>
-
-// Global screen dimensions
-const int SCREEN_WIDTH = 800;
-const int SCREEN_HEIGHT = 600;
 
 // Global pixel buffer and pitch
 Uint32 *pixels;
@@ -61,44 +59,50 @@ int main(int argc, char *argv[]) {
     }
     SDL_UnlockTexture(texture);
 
-    // Initialize cave module
+    // Initialize modules
     cave_init(texture);
+    player1_init(texture);
+    player2_init(texture);
 
     // Game loop (60 Hz)
     int running = 1;
     SDL_Event event;
     Uint32 last_time = SDL_GetTicks();
-    const float TARGET_FRAME_TIME = 1000.0f / 60.0f; // ~16.67 ms for 60 Hz
+    const float TARGET_FRAME_TIME = 1000.0f / 60.0f;
 
     while (running) {
-        // Handle quit event
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
                 running = 0;
             }
         }
 
-        // Calculate delta time
         Uint32 current_time = SDL_GetTicks();
-        float delta_time = (current_time - last_time) / 1000.0f; // Seconds
+        float delta_time = (current_time - last_time) / 1000.0f;
         last_time = current_time;
 
-        // Update and render cave
+        // Update and render modules
         cave_update_and_render(delta_time, texture);
+        player1_update_and_render(delta_time, texture, top_terrain, bottom_terrain, (int)cave_get_scroll_offset());
+        player2_update_and_render(delta_time, texture, top_terrain, bottom_terrain, (int)cave_get_scroll_offset());
 
-        // Render to screen
+        // Check for game over
+        if (player1_is_dead() && player2_is_dead()) {
+            printf("Both players crashed!\n");
+            SDL_Delay(1000); // Pause to hear crash sounds
+            running = 0;
+        }
+
         SDL_RenderClear(renderer);
         SDL_RenderCopy(renderer, texture, NULL, NULL);
         SDL_RenderPresent(renderer);
 
-        // Cap at 60 Hz
         Uint32 frame_time = SDL_GetTicks() - current_time;
         if (frame_time < TARGET_FRAME_TIME) {
             SDL_Delay((Uint32)(TARGET_FRAME_TIME - frame_time));
         }
     }
 
-    // Cleanup
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);

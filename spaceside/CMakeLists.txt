@@ -18,8 +18,8 @@ endif()
 # Include directories
 include_directories(${SDL2_INCLUDE_DIRS} ${SDL2_MIXER_INCLUDE_DIR})
 
-# Add executable
-add_executable(CaveScroller main.c cave.c)
+# Add executable with all source files
+add_executable(CaveScroller main.c cave.c player1.c player2.c)
 
 # Link libraries
 target_link_libraries(CaveScroller ${SDL2_LIBRARIES} ${SDL2_MIXER_LIBRARY} m)
