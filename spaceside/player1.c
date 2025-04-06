@@ -131,7 +131,7 @@ void player1_update_and_render(float delta_time, SDL_Texture *texture, const int
     }
     if (state[SDL_SCANCODE_W] && fuel > 0) {
         vel_y -= THRUST; // Up
-        fuel -= 0.8f * delta_time; // Fuel burn
+        fuel -= 0.02f; // Fuel burn per frame
         thrusting = 1;
     }
 
@@ -145,7 +145,7 @@ void player1_update_and_render(float delta_time, SDL_Texture *texture, const int
     }
 
     // Physics
-    vel_y += GRAVITY; // Gravity applied per frame, not scaled by delta_time for stronger effect
+    vel_y += GRAVITY; // Gravity per frame
     last_x = x;
     last_y = y;
     last_flame_x = x + 2;
@@ -167,6 +167,21 @@ void player1_update_and_render(float delta_time, SDL_Texture *texture, const int
             printf("Player 1: Crash sound not loaded!\n");
         }
         return;
+    }
+
+    // Fuel pod collision
+    FuelPod *pods = cave_get_fuel_pods();
+    int pod_count = cave_get_fuel_pod_count();
+    for (int i = 0; i < pod_count; i++) {
+        if (pods[i].active) {
+            int pod_x = (int)(pods[i].x - scroll_offset);
+            int pod_y = (int)pods[i].y;
+            if (x + 8 > pod_x && x < pod_x + 4 && y + 8 > pod_y && y < pod_y + 4) {
+                fuel += 25.0f; // Add 25% fuel
+                if (fuel > 100.0f) fuel = 100.0f; // Cap at 100
+                cave_consume_fuel_pod(i); // Consume pod
+            }
+        }
     }
 
     // Draw
